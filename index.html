@@ -4,58 +4,73 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dino Game</title>
-  <style>
-    body {
-      background-color: #fff;
-      font-family: Arial, Helvetica, sans-serif;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    .title {
-      position: absolute;
-      top: 30%;
-      text-align: center;
-    }
-
-    .title h1 {
-      font-size: 32px;
-      letter-spacing: 4px;
-
-      margin-bottom: 10px;
-    }
-    @keyframes blink {
-      50% { opacity: 0; }
-    }
-
-    .dino {
-      position: absolute;
-      bottom: 60px;
-      left: 80px;
-      width: 80px;
-    }
-
-    .ground {
-      width: 100%;
-      height: 20px;
-      object-fit: cover;
-      margin-bottom: 20px;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css" />
 </head>
 <body>
-  <div class="title">
-    <h1>Dino Game</h1>
-    <p class="hint">Press to Start</p>
+
+  <!-- ══ SCHERM 1: START ══ -->
+  <div id="screen-1" class="screen active">
+    <canvas id="s1-canvas"></canvas>
+    <p id="s1-pred"></p>
+    <button id="s1-start-btn">Start</button>
+    <div id="s1-wave">👋</div>
+    <div id="s1-progress">
+      <img src="assets/Dino.png" alt="" />
+      <span>100%</span>
+    </div>
+    <img id="dino-s1"   src="assets/Dino.png"   alt="" />
+    <img id="cactus-s1" src="assets/Cactus.svg" alt="" />
+    <canvas id="ground-canvas-s1"></canvas>
   </div>
 
-  <img class="dino" src="Dino.png" alt="dino" />
-  <img class="ground" src="Ground.png" alt="ground" />
+  <!-- ══ SCHERM 2: INSTRUCTIES ══ -->
+  <div id="screen-2" class="screen">
+    <div class="instruction-box">
+      <h2>instruction</h2>
+      <p class="sub">How to Play?</p>
+      <div class="rules">
+        Steek je hand omhoog om te springen 🙌<br>
+        Geen hand = lopen 🏃<br>
+        Vermijd de cactus! 🌵
+      </div>
+      <button class="play-btn" id="play-btn">▶ Start Game</button>
+    </div>
+  </div>
+
+  <!-- ══ SCHERM 3: GAME ══ -->
+  <div id="screen-3" class="screen">
+    <div id="score-display">Score: <span id="score-val">0</span></div>
+    <canvas id="s3-canvas"></canvas>
+    <p id="s3-pred"></p>
+    <img id="dino"   src="assets/Dino.png"   alt="" />
+    <img id="cactus" src="assets/Cactus.svg" alt="" />
+    <canvas id="ground-canvas-s3"></canvas>
+  </div>
+
+  <!-- ══ SCHERM 4: GAME OVER ══ -->
+  <div id="screen-4" class="screen">
+    <canvas id="s4-canvas"></canvas>
+    <div id="gameover-box">
+      <p class="score-lbl">Score <span id="final-score">0</span></p>
+      <p class="go-lbl">Game over</p>
+      <button class="retry-btn" id="retry-btn">▶ Opnieuw</button>
+    </div>
+    <img id="dino-dead" src="assets/Dino.png" alt="" />
+    <canvas id="ground-canvas-s4"></canvas>
+  </div>
+
+  <!-- TensorFlow + Teachable Machine -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
+
+  <!-- Game scripts -->
+  <script src="js/camera.js"></script>
+  <script src="js/teachable.js"></script>
+  <script src="js/ground.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/screens.js"></script>
+  <script src="js/main.js"></script>
 
 </body>
 </html>
