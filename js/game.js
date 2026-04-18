@@ -92,14 +92,23 @@ function moveCactus() {
 }
 
 function checkCollision() {
-  const d = document.getElementById("dino").getBoundingClientRect();
-  const c = document.getElementById("cactus").getBoundingClientRect();
-  const m = 32;
+  // Gebruik de variabelen die we al hebben voor betere performance
+  // Dino X is vastgesteld op 80px (zie CSS)
+  const dinoX = 80;
+  const dinoWidth = 220;
+  const dinoHeight = 220;
+  
+  const cactusWidth = 110;
+  const cactusHeight = 110;
+
+  // Margin voor een 'vergevingsgezinde' hitbox (hitbox iets kleiner dan de afbeelding)
+  const m = 40; 
 
   if (
-    d.right  - m > c.left  + m &&
-    d.left   + m < c.right - m &&
-    d.bottom - m > c.top   + m
+    dinoX + dinoWidth - m > cactusX + m &&
+    dinoX + m < cactusX + cactusWidth - m &&
+    // dinoY is 0 als hij op de grond staat, de cactus staat altijd op de grond
+    dinoY < cactusHeight - m
   ) {
     triggerGameOver();
   }

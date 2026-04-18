@@ -1,24 +1,31 @@
-// teachable.js — laadt Teachable Machine model en detecteert poses
+// teachable.js — laadt Teachable Machine Image model
 
-const MODEL_URL  = "./my_model/";
-const JUMP_CLASS = "hand_up";   // verander naar jouw klasse naam
+// 1. ZET HIER DE NAMEN VAN JOUW CLASSES UIT TEACHABLE MACHINE
+const MODEL_URL  = "./my_model/";  // Dit komt overeen met 'const URL' uit jouw snippet
+const JUMP_CLASS = "Springen";    // Vervang dit door de className uit jouw model
+const WAVE_CLASS = "Zwaaien";     // Vervang dit door de className voor de start-actie
+
+// Hoe zeker moet de computer zijn? (0.8 = 80%)
 const THRESHOLD  = 0.8;
 
 let tmModel   = null;
-let tmWebcam  = null;
 let tmReady   = false;
 let tmLoading = false;
+let lastActionTime = 0; // Houdt bij wanneer de laatste menu-actie was
 
 async function initTM() {
   if (tmReady || tmLoading) return;
   tmLoading = true;
-
   try {
-    tmModel = await tmPose.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-
-    tmWebcam = new tmPose.Webcam(240, 240, true);
-    await tmWebcam.setup();
-    await tmWebcam.play();
+    const modelPath = MODEL_URL + "model.json";
+    const metadataPath = MODEL_URL + "metadata.json";
+    
+    // Dit is gelijk aan tmImage.load(modelURL, metadataURL) uit jouw snippet
+    tmModel = await tmImage.load(modelPath, metadataPath);
+    
+    // Handig voor debugging: zie welke klasses er in je model zitten
+    console.log("Beschikbare klasses in model:", tmModel.getClassLabels());
+    console.log("TM Model succesvol geladen!");
 
     tmReady   = true;
     tmLoading = false;
@@ -26,51 +33,72 @@ async function initTM() {
     requestAnimationFrame(tmLoop);
   } catch (e) {
     tmLoading = false;
-    console.warn("TM model niet geladen:", e);
-    // spel werkt nog via spatiebalk
+    console.error("TM model niet geladen. Controleer of de map 'my_model' bestaat met de juiste bestanden.", e);
+    document.getElementById("s1-pred").textContent = "❌ Model niet gevonden in /my_model/";
   }
 }
 
 async function tmLoop() {
-  if (!tmReady || !tmModel) {
+  // Controleer welke schermen actief zijn voor navigatie
+  const s1Active = document.getElementById("screen-1").classList.contains("active");
+  const s2Active = document.getElementById("screen-2").classList.contains("active");
+  const s4Active = document.getElementById("screen-4").classList.contains("active");
+
+  if (!running && !s1Active && !s2Active && !s4Active) {
     requestAnimationFrame(tmLoop);
     return;
   }
 
-  tmWebcam.update();
+  if (!camVideo || camVideo.readyState < 2) {
+    requestAnimationFrame(tmLoop);
+    return;
+  }
 
-  const { pose, posenetOutput } = await tmModel.estimatePose(tmWebcam.canvas);
-  const predictions = await tmModel.predict(posenetOutput);
+  // In jouw snippet staat 'model.predict(webcam.canvas)'.
+  // Wij gebruiken hier 'camVideo' omdat we die stream al hebben in camera.js.
+  const predictions = await tmModel.predict(camVideo);
+  const best = predictions.reduce((a, b) => a.probability > b.probability ? a : b);
 
-  // beste voorspelling
-  const best  = predictions.reduce((a, b) => a.probability > b.probability ? a : b);
+  // Debug: haal de volgende regel uit commentaar om alle klasses in je console te zien
+  // console.log("Gezien:", best.className, best.probability.toFixed(2));
+
   const label = best.className + "  " + (best.probability * 100).toFixed(0) + "%";
 
   document.getElementById("s1-pred").textContent = label;
   document.getElementById("s3-pred").textContent = label;
 
-  // teken skeleton op scherm 3 canvas bovenop de camera
+  // Teken de camera op het canvas van scherm 3 (zonder skelet)
   const canvas = document.getElementById("s3-canvas");
   if (canvas && document.getElementById("screen-3").classList.contains("active")) {
     const ctx = canvas.getContext("2d");
-    // camera opnieuw tekenen als basis
     if (camVideo && camVideo.readyState >= 2) {
       ctx.save();
       ctx.scale(-1, 1);
       ctx.drawImage(camVideo, -canvas.width, 0, canvas.width, canvas.height);
       ctx.restore();
     }
-    // pose skeleton
-    if (pose) {
-      tmPose.drawKeypoints(pose.keypoints, 0.5, ctx);
-      tmPose.drawSkeleton(pose.keypoints, 0.5, ctx);
-    }
   }
 
-  // spring detectie — roept jump() aan uit game.js
-  if (typeof running !== "undefined" && running) {
-    if (best.className === JUMP_CLASS && best.probability > THRESHOLD) {
-      jump();
+  // Gebaar detectie voor navigatie en gameplay
+  const now = Date.now();
+  if (best.probability > THRESHOLD) {
+    if (running) {
+      // Tijdens het spel: Springen (geen cooldown nodig)
+      if (best.className === JUMP_CLASS) jump();
+    } else if (now - lastActionTime > 1500) {
+      // In de menu's: Navigeren met een cooldown van 1.5 seconden
+      if (best.className === WAVE_CLASS) {
+        if (s1Active) {
+          goToInstructions();
+          lastActionTime = now;
+        } else if (s2Active) {
+          startGame();
+          lastActionTime = now;
+        } else if (s4Active) {
+          restartGame();
+          lastActionTime = now;
+        }
+      }
     }
   }
 
