@@ -1,7 +1,7 @@
 // game.js
 
 const GRAVITY    = 0.5;
-const JUMP_FORCE = -20;
+const JUMP_FORCE = -21;
 
 let dinoY        = 0;
 let velY         = 0;
