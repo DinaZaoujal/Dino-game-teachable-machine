@@ -5,7 +5,7 @@ const GROUND_H = 80; // hoogte in px
 let groundImg    = new Image();
 let groundOffset = 0;
 
-groundImg.src = "assets/Ground.png";
+groundImg.src = "assets/Ground.svg";
 
 function drawGround(canvasId, offset) {
   const canvas = document.getElementById(canvasId);

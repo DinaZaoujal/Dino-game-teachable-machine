@@ -1,106 +1,109 @@
-// teachable.js — laadt Teachable Machine Image model
+// teachable.js
 
-// 1. ZET HIER DE NAMEN VAN JOUW CLASSES UIT TEACHABLE MACHINE
-const MODEL_URL  = "./my_model/";  // Dit komt overeen met 'const URL' uit jouw snippet
-const JUMP_CLASS = "Springen";    // Vervang dit door de className uit jouw model
-const WAVE_CLASS = "Zwaaien";     // Vervang dit door de className voor de start-actie
+const MODEL_URL = "./my_model/";
 
-// Hoe zeker moet de computer zijn? (0.8 = 80%)
-const THRESHOLD  = 0.8;
-
-let tmModel   = null;
-let tmReady   = false;
+let model, webcam, maxPredictions;
+let tmReady  = false;
 let tmLoading = false;
-let lastActionTime = 0; // Houdt bij wanneer de laatste menu-actie was
 
 async function initTM() {
   if (tmReady || tmLoading) return;
   tmLoading = true;
+
   try {
-    const modelPath = MODEL_URL + "model.json";
-    const metadataPath = MODEL_URL + "metadata.json";
-    
-    // Dit is gelijk aan tmImage.load(modelURL, metadataURL) uit jouw snippet
-    tmModel = await tmImage.load(modelPath, metadataPath);
-    
-    // Handig voor debugging: zie welke klasses er in je model zitten
-    console.log("Beschikbare klasses in model:", tmModel.getClassLabels());
-    console.log("TM Model succesvol geladen!");
+    const modelURL    = MODEL_URL + "model.json";
+    const metadataURL = MODEL_URL + "metadata.json";
 
-    tmReady   = true;
-    tmLoading = false;
+    model          = await tmPose.load(modelURL, metadataURL);
+    maxPredictions = model.getTotalClasses();
 
+    const size = 200;
+    webcam = new tmPose.Webcam(size, size, true);
+    await webcam.setup();
+    await webcam.play();
+
+    tmReady = true;
     requestAnimationFrame(tmLoop);
-  } catch (e) {
-    tmLoading = false;
-    console.error("TM model niet geladen. Controleer of de map 'my_model' bestaat met de juiste bestanden.", e);
-    document.getElementById("s1-pred").textContent = "❌ Model niet gevonden in /my_model/";
+  } catch (err) {
+    console.error("TM init mislukt:", err);
+    const el = document.getElementById('s1-pred');
+    if (el) el.textContent = "❌ model niet gevonden";
   }
+
+  tmLoading = false;
 }
 
 async function tmLoop() {
-  // Controleer welke schermen actief zijn voor navigatie
-  const s1Active = document.getElementById("screen-1").classList.contains("active");
-  const s2Active = document.getElementById("screen-2").classList.contains("active");
-  const s4Active = document.getElementById("screen-4").classList.contains("active");
-
-  if (!running && !s1Active && !s2Active && !s4Active) {
-    requestAnimationFrame(tmLoop);
-    return;
-  }
-
-  if (!camVideo || camVideo.readyState < 2) {
-    requestAnimationFrame(tmLoop);
-    return;
-  }
-
-  // In jouw snippet staat 'model.predict(webcam.canvas)'.
-  // Wij gebruiken hier 'camVideo' omdat we die stream al hebben in camera.js.
-  const predictions = await tmModel.predict(camVideo);
-  const best = predictions.reduce((a, b) => a.probability > b.probability ? a : b);
-
-  // Debug: haal de volgende regel uit commentaar om alle klasses in je console te zien
-  // console.log("Gezien:", best.className, best.probability.toFixed(2));
-
-  const label = best.className + "  " + (best.probability * 100).toFixed(0) + "%";
-
-  document.getElementById("s1-pred").textContent = label;
-  document.getElementById("s3-pred").textContent = label;
-
-  // Teken de camera op het canvas van scherm 3 (zonder skelet)
-  const canvas = document.getElementById("s3-canvas");
-  if (canvas && document.getElementById("screen-3").classList.contains("active")) {
-    const ctx = canvas.getContext("2d");
-    if (camVideo && camVideo.readyState >= 2) {
-      ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(camVideo, -canvas.width, 0, canvas.width, canvas.height);
-      ctx.restore();
-    }
-  }
-
-  // Gebaar detectie voor navigatie en gameplay
-  const now = Date.now();
-  if (best.probability > THRESHOLD) {
-    if (running) {
-      // Tijdens het spel: Springen (geen cooldown nodig)
-      if (best.className === JUMP_CLASS) jump();
-    } else if (now - lastActionTime > 1500) {
-      // In de menu's: Navigeren met een cooldown van 1.5 seconden
-      if (best.className === WAVE_CLASS) {
-        if (s1Active) {
-          goToInstructions();
-          lastActionTime = now;
-        } else if (s2Active) {
-          startGame();
-          lastActionTime = now;
-        } else if (s4Active) {
-          restartGame();
-          lastActionTime = now;
-        }
-      }
-    }
-  }
-
+  if (!tmReady) return;
+  webcam.update();
+  await tmPredict();
   requestAnimationFrame(tmLoop);
+}
+
+function getActiveWebcamCanvas() {
+  const active = document.querySelector('.screen.active');
+  if (!active) return null;
+  const map = {
+    'screen-1': 's1-canvas',
+    'screen-3': 's3-canvas',
+    'screen-4': 's4-canvas',
+  };
+  const id = map[active.id];
+  return id ? document.getElementById(id) : null;
+}
+
+async function tmPredict() {
+  const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
+  const prediction = await model.predict(posenetOutput);
+
+  // Teken gespiegelde webcam + skelet op het actieve canvas
+  const canvas = getActiveWebcamCanvas();
+  if (canvas) {
+    const w = webcam.canvas.width;
+    const h = webcam.canvas.height;
+    if (canvas.width !== w)  canvas.width  = w;
+    if (canvas.height !== h) canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(webcam.canvas, -w, 0, w, h);
+    ctx.restore();
+    if (pose) {
+      tmPose.drawKeypoints(pose.keypoints, 0.5, ctx);
+      tmPose.drawSkeleton(pose.keypoints, 0.5, ctx);
+    }
+  }
+
+  // Beste voorspelling bepalen
+  let best = { className: '', probability: 0 };
+  for (let i = 0; i < maxPredictions; i++) {
+    if (prediction[i].probability > best.probability) best = prediction[i];
+  }
+
+  const predText = best.className
+    ? `${best.className}: ${(best.probability * 100).toFixed(0)}%`
+    : '';
+
+  // Voorspellingstekst tonen op actief scherm
+  const active = document.querySelector('.screen.active');
+  if (active?.id === 'screen-1') {
+    const el = document.getElementById('s1-pred');
+    if (el) el.textContent = predText;
+  } else if (active?.id === 'screen-3') {
+    const el = document.getElementById('s3-pred');
+    if (el) el.textContent = predText;
+  }
+
+  // ── Pose acties ──
+  if (best.probability > 0.8) {
+    // Class 4 (wave) → start knop automatisch op scherm 1
+    if (active?.id === 'screen-1' && best.className === 'Class 4') {
+      goToInstructions();
+    }
+
+    // Class 5 (2 handen omhoog) → springen tijdens het spel
+    if (running && best.className === 'Class 5') {
+      jump();
+    }
+  }
 }

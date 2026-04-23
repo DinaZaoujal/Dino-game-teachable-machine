@@ -12,10 +12,7 @@ window.addEventListener("load", async () => {
     drawGround("ground-canvas-s1", 0);
   }
 
-  // camera starten — vraagt toestemming aan de browser
-  await startCamera();
-
-  // Teachable Machine model laden
+  // Teachable Machine model laden (handelt ook de camera af)
   await initTM();
 
 });
